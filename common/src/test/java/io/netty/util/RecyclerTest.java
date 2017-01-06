@@ -25,7 +25,7 @@ import static org.junit.Assert.*;
 public class RecyclerTest {
 
     private static Recycler<HandledObject> newRecycler(int max) {
-        return new Recycler<HandledObject>(max) {
+        return new Recycler<HandledObject>(max, Recycler.MAX_SHARED_CAPACITY_FACTOR, 0, Recycler.MAX_DELAYED_QUEUES_PER_THREAD) {
             @Override
             protected HandledObject newObject(
                     Recycler.Handle<HandledObject> handle) {
@@ -216,5 +216,50 @@ public class RecyclerTest {
         void recycle() {
             handle.recycle(this);
         }
+    }
+
+    private Thread recycleInNewThread(final HandledObject object, final HandledObject object2) throws InterruptedException {
+        final Thread thread = new Thread() {
+            @Override
+            public void run() {
+                object.recycle();
+                System.out.println(object + " was recycled");
+                if (object2 != null) {
+                    try {
+                        Thread.sleep(1000);
+                    } catch (InterruptedException e) {
+                        e.printStackTrace();
+                    }
+                    object2.recycle();
+                    System.out.println(object2 + " was recycled");
+                }
+            }
+        };
+        thread.start();
+        if (object2 == null) {
+            thread.join();
+        }
+        return thread;
+    }
+
+    @Test
+    public void test6153() throws Exception {
+        final Recycler<HandledObject> recycler = newRecycler(1024);
+        HandledObject object1 = recycler.get();
+        HandledObject object2 = recycler.get();
+        HandledObject object3 = recycler.get();
+        HandledObject object4 = recycler.get();
+
+        Thread t1 = recycleInNewThread(object1, object4);
+        Thread.sleep(100);
+        Thread t2 = recycleInNewThread(object2, null);
+        Thread t3 = recycleInNewThread(object3, null);
+        assertEquals(object3, recycler.get());
+        assertEquals(object2, recycler.get());
+        assertEquals(object1, recycler.get());
+        t1 = null;
+        assertEquals(object4, recycler.get());
+        t3 = null;
+        recycler.get();
     }
 }

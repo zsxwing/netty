@@ -52,8 +52,8 @@ public abstract class Recycler<T> {
     private static final int DEFAULT_INITIAL_MAX_CAPACITY_PER_THREAD = 32768; // Use 32k instances as default.
     private static final int DEFAULT_MAX_CAPACITY_PER_THREAD;
     private static final int INITIAL_CAPACITY;
-    private static final int MAX_SHARED_CAPACITY_FACTOR;
-    private static final int MAX_DELAYED_QUEUES_PER_THREAD;
+    static final int MAX_SHARED_CAPACITY_FACTOR;
+    static final int MAX_DELAYED_QUEUES_PER_THREAD;
     private static final int LINK_CAPACITY;
     private static final int RATIO;
 
@@ -358,6 +358,7 @@ public abstract class Recycler<T> {
 
                     if (dst.dropHandle(element)) {
                         // Drop the object.
+                        System.out.println("drop handle!!!! this: " + this + " handle: " + element);
                         continue;
                     }
                     element.stack = dst;
@@ -490,13 +491,22 @@ public abstract class Recycler<T> {
             boolean success = false;
             WeakOrderQueue prev = this.prev;
             do {
+                System.out.println("loop prev: " + prev + " cursor: " + cursor);
                 if (cursor.transfer(this)) {
                     success = true;
                     break;
                 }
-
+                try {
+                    // Sleep a while to wait for adding new item to cursor
+                    Thread.sleep(300);
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+                System.gc();
+                System.out.println("gc end!!!!");
                 WeakOrderQueue next = cursor.next;
                 if (cursor.owner.get() == null) {
+                    System.out.println("thread dead, WeakOrderQueue: " + cursor);
                     // If the thread associated with the queue is gone, unlink it, after
                     // performing a volatile read to confirm there is no data left to collect.
                     // We never unlink the first queue, as we don't want to synchronize on updating the head.
@@ -522,6 +532,7 @@ public abstract class Recycler<T> {
 
             this.prev = prev;
             this.cursor = cursor;
+            System.out.println("leave prev: " + prev + " cursor: " + cursor + " success: " + success);
             return success;
         }
 
@@ -579,6 +590,7 @@ public abstract class Recycler<T> {
                 return;
             }
 
+            System.out.println("adding : " + queue + " item: " + item);
             queue.add(item);
         }
 
